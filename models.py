@@ -1,6 +1,25 @@
 from datetime import datetime
+from enum import Enum
 
-TEA_TYPES = ["绿茶", "红茶", "白茶", "乌龙", "普洱", "花茶"]
+
+class TeaType(Enum):
+    GREEN = "绿茶"
+    BLACK = "红茶"
+    WHITE = "白茶"
+    OOLONG = "乌龙"
+    PUER = "普洱"
+    FLORAL = "花茶"
+
+    @classmethod
+    def values(cls):
+        return [t.value for t in cls]
+
+    @classmethod
+    def is_valid(cls, value):
+        return value in cls.values()
+
+
+TEA_TYPES = TeaType.values()
 
 
 class ValidationError(Exception):
@@ -8,9 +27,9 @@ class ValidationError(Exception):
 
 
 def validate_tea_type(tea_type):
-    if tea_type not in TEA_TYPES:
+    if not TeaType.is_valid(tea_type):
         raise ValidationError(
-            f"茶叶类型必须是以下之一：{', '.join(TEA_TYPES)}"
+            f"茶叶类型必须是以下之一：{', '.join(TeaType.values())}"
         )
 
 
@@ -102,28 +121,42 @@ def sell_tea(data, tea_id, qty, date):
     date = validate_date(date)
 
     tea = data["teas"][tea_id]
-    if tea["stock"] < qty:
-        shortage = qty - tea["stock"]
+    current_stock = tea["stock"]
+
+    rows_affected = 0
+    if current_stock >= qty:
+        tea["stock"] = current_stock - qty
+        rows_affected = 1
+
+    if rows_affected == 0:
+        shortage = qty - current_stock
         raise ValidationError(
-            f"库存不足，当前库存 {tea['stock']} {tea['unit']}，"
+            f"库存不足，当前库存 {current_stock} {tea['unit']}，"
             f"还需 {shortage} {tea['unit']}"
         )
 
-    tea["stock"] -= qty
-    profit = (tea["price"] - tea["cost"]) * qty
+    unit_price = tea["price"]
+    unit_cost = tea["cost"]
+    tea_type = tea["type"]
+    tea_name = tea["name"]
+    profit = (unit_price - unit_cost) * qty
 
     data["sales"].append({
         "tea_id": tea_id,
+        "tea_name": tea_name,
+        "tea_type": tea_type,
         "qty": qty,
         "date": date,
-        "unit_price": tea["price"],
-        "unit_cost": tea["cost"],
+        "unit_price": unit_price,
+        "unit_cost": unit_cost,
         "profit": profit,
     })
     return {
         "tea": tea,
         "qty": qty,
         "profit": profit,
+        "unit_price": unit_price,
+        "unit_cost": unit_cost,
     }
 
 
@@ -145,19 +178,26 @@ def monthly_profit(data, month):
         if sale_month != month:
             continue
 
-        tea_id = sale["tea_id"]
-        tea = data["teas"].get(tea_id)
-        if not tea:
-            continue
+        tea_type = sale.get("tea_type")
+        if not tea_type:
+            tea_id = sale["tea_id"]
+            tea = data["teas"].get(tea_id)
+            if not tea:
+                continue
+            tea_type = tea["type"]
 
-        tea_type = tea["type"]
+        unit_price = sale["unit_price"]
+        unit_cost = sale["unit_cost"]
+        qty = sale["qty"]
+        profit = (unit_price - unit_cost) * qty
+
         if tea_type not in by_type:
             by_type[tea_type] = {
                 "type": tea_type,
                 "total_qty": 0,
                 "total_profit": 0,
             }
-        by_type[tea_type]["total_qty"] += sale["qty"]
-        by_type[tea_type]["total_profit"] += sale["profit"]
+        by_type[tea_type]["total_qty"] += qty
+        by_type[tea_type]["total_profit"] += profit
 
     return sorted(by_type.values(), key=lambda x: x["type"])

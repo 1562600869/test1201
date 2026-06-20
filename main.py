@@ -4,6 +4,7 @@ import sys
 from storage import load_data, save_data, atomic_update, DATA_FILE
 from models import (
     ValidationError,
+    TeaType,
     TEA_TYPES,
     add_tea,
     restock_tea,
@@ -113,8 +114,8 @@ def main():
     p_add = subparsers.add_parser("add-tea", help="添加新茶叶")
     p_add.add_argument("tea_id", help="茶叶编号")
     p_add.add_argument("name", help="茶叶名称")
-    p_add.add_argument("--type", required=True, choices=TEA_TYPES,
-                       help=f"茶叶类型：{', '.join(TEA_TYPES)}")
+    p_add.add_argument("--type", required=True, choices=TeaType.values(),
+                       help=f"茶叶类型：{', '.join(TeaType.values())}")
     p_add.add_argument("--unit", required=True, help="计量单位（如 g）")
     p_add.add_argument("--stock", type=int, default=0, help="初始库存")
     p_add.add_argument("--cost", type=int, required=True, help="进货价（分/单位）")
